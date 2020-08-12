@@ -1,3 +1,137 @@
+
+
+# NFS Server
+
+for the NFS server we will need to NFS utils packages , setup the required directories and files and make sure the firewalld + SElinux are configured correctly.
+This tutorial already assume that you have already pre installed the OS so I will not go into that in this tutorial.
+
+## NFS Packages
+
+First we will install the necessary packages for which we require :
+
+```
+$ yum install -y nfs-utils policycoreutils-python-utils policycoreutils-python
+```
+
+now for the NFS configuration we will create a new directory
+
+```
+$ mkdir /var/nfsshare
+```
+
+## Optional
+
+Create an LVM device and mount it into the new directory :
+
+```
+$ lvcreate -L50G -n nfs vg00
+$ mkfs.xfs /dev/vg00/nfs
+$ mount -t xfs /dev/vg00/nfs /var/nfsshare
+```
+
+and add it to your fstab (or autofs) file to make sure it is consistent at boot time :
+
+```
+$ cat >> /etc/fstab << EOF
+/dev/vg00/nfs /var/nfsshare   xfs  defaults 0 0
+EOF
+```
+
+## Continue…
+
+Now we to make sure everybody has write permissions on the directory (I know this is bad security wise) so we will change it to 777
+
+```
+$ chmod 777 /var/nfsshare
+```
+
+Edit the /etc/exports file to publish the nfs share directory
+
+```
+$ cat > /etc/exports << EOF
+/var/nfsshare     *(rw,sync,no_wdelay,no_root_squash,insecure,fsid=0)
+EOF
+```
+
+Start the services :
+
+```
+$ systemctl start rpcbind
+$ systemctl start nfs-server
+$ systemctl start nfs-lock
+$ systemctl start nfs-idmap
+```
+
+Make sure they run on boot time :
+
+```
+$ systemctl enable rpcbind
+$ systemctl enable nfs-server
+$ systemctl enable nfs-lock
+$ systemctl enable nfs-idmap
+```
+
+## Firewall
+
+For the firewalld we need to make sure the following services are open :
+
+```
+$ export FIREWALLD_DEFAULT_ZONE=`firewall-cmd --get-default-zone`
+$ echo ${FIREWALLD_DEFAULT_ZONE}
+public
+$ firewall-cmd --permanent --zone=${FIREWALLD_DEFAULT_ZONE} --add-service=rpc-bind
+$ firewall-cmd --permanent --zone=${FIREWALLD_DEFAULT_ZONE} --add-service=nfs
+$ firewall-cmd --permanent --zone=${FIREWALLD_DEFAULT_ZONE} --add-service=mountd
+```
+
+Now we will reload the firewall configuration :
+
+```
+$ firewall-cmd --reload
+$ firewall-cmd --list-all
+public (active)
+  target: default
+  icmp-block-inversion: no
+  interfaces: ens192
+  sources: 
+  services: dhcpv6-client dns ftp http https kerberos ldap ldaps mountd nfs ntp ssh tftp
+  ports: 80/tcp 443/tcp 389/tcp 636/tcp 53/tcp 88/udp 464/udp 53/udp 123/udp 88/tcp 464/tcp 123/tcp 9000/tcp 8000/tcp 8080/tcp 111/tcp 54302/tcp 20048/tcp 2049/tcp 46666/tcp 42955/tcp 875/tcp
+  protocols: 
+  masquerade: no
+  forward-ports: 
+  source-ports: 
+  icmp-blocks: 
+  rich rules:
+```
+
+## SElinux
+
+for the SElinux part we need to set two (2) boolean roles and set the nfs directory with semanage:
+
+```
+$ setsebool -P nfs_export_all_rw 1
+$ setsebool -P nfs_export_all_ro 1
+```
+
+And for the Directory content switch :
+
+```
+$ semanage fcontext -a -t public_content_rw_t  "/var/nfsshare(/.*)?"
+$ restorecon -R /var/nfsshare
+```
+
+## Testing
+
+On another machine , make sure you have “nfs-utils” installed and mount the directory from the server :
+
+```
+$ mount -t nfs nfs-server:/var/nfsshare /mnt
+$ touch /mnt/1 && rm -f /mnt/1
+```
+
+If the command was successful and you can create a file and delete it , we are good to go
+
+
 # Kubernetes NFS-Client Provisioner
 
 [![Docker Repository on Quay](https://quay.io/repository/external_storage/nfs-client-provisioner/status "Docker Repository on Quay")](https://quay.io/repository/external_storage/nfs-client-provisioner)
