@@ -281,6 +281,8 @@ spec:
 ```
 
 
+##### Appendix.1
+https://docs.openshift.com/container-platform/4.5/installing/installing_vsphere/installing-vsphere-installer-provisioned-network-customizations.html
 
 1. To configure your registry to use storage, change the `spec.storage.pvc` in the `configs.imageregistry/cluster` resource.
 
