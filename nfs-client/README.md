@@ -279,3 +279,136 @@ spec:
     requests:
       storage: 1Mi
 ```
+
+
+
+1. To configure your registry to use storage, change the `spec.storage.pvc` in the `configs.imageregistry/cluster` resource.
+
+   |      | When using shared storage such as NFS, it is strongly recommended to use the `supplementalGroups` strategy, which dictates the allowable supplemental groups for the Security Context, rather than the `fsGroup` ID. Refer to the NFS **Group IDs** documentation for details. |
+
+
+2. Verify you do not have a registry Pod:
+
+   
+
+   ```
+   $ oc get pod -n openshift-image-registry
+   ```
+
+   |      | If the storage type is `emptyDIR`, the replica number cannot be greater than `1`.If the storage type is `NFS`, you must enable the `no_wdelay` and `root_squash` mount options. For example:`# cat /etc/exports`Example output`/mnt/data *(rw,sync,no_wdelay,root_squash,insecure,fsid=0)``sh-4.2# exportfs -rv`Example output`exporting *:/mnt/data` |
+
+
+3. Check the registry configuration:
+
+   
+
+   ```
+   $ oc edit configs.imageregistry.operator.openshift.io
+   ```
+
+   Example registry configuration
+
+   
+
+   ```
+   storage:
+     pvc:
+       claim:
+   ```
+
+   Leave the `claim` field blank to allow the automatic creation of an `image-registry-storage` PVC.
+
+4. Optional: Add a new storage class to a PV:
+
+   1. Create the PV:
+
+      
+
+      ```
+      $ oc create -f -
+      ```
+
+      
+
+      ```
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: image-registry-pv
+      spec:
+        accessModes:
+          - ReadWriteMany
+        capacity:
+            storage: 100Gi
+        nfs:
+          path: /registry
+          server: 172.16.231.181
+        persistentVolumeReclaimPolicy: Retain
+        storageClassName: nfs01
+      ```
+
+      
+
+      ```
+      $ oc get pv
+      ```
+
+   2. Create the PVC:
+
+      
+
+      ```
+      $ oc create -n openshift-image-registry -f -
+      ```
+
+      
+
+      ```
+      apiVersion: "v1"
+      kind: "PersistentVolumeClaim"
+      metadata:
+        name: "image-registry-pvc"
+      spec:
+        accessModes:
+          - ReadWriteMany
+        resources:
+          requests:
+            storage: 100Gi
+        storageClassName: nfs01
+        volumeMode: Filesystem
+      ```
+
+      
+
+      ```
+      $ oc get pvc -n openshift-image-registry
+      ```
+
+      Finally, add the name of your PVC:
+
+      
+
+      ```
+      $ oc edit configs.imageregistry.operator.openshift.io -o yaml
+      ```
+
+      
+
+      ```
+      storage:
+        pvc:
+          claim: image-registry-pvc 
+      ```
+
+      |      | Creating a custom PVC allows you to leave the `claim` field blank for default automatic creation of an `image-registry-storage` PVC. |
+
+5. Check the `clusteroperator` status:
+
+   
+
+   ```
+   $ oc get clusteroperator image-registry
+   ```
+
+###### Configuring block registry storage for VMware vSphere
+
