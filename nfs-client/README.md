@@ -49,7 +49,7 @@ Edit the /etc/exports file to publish the nfs share directory
 
 ```
 $ cat > /etc/exports << EOF
-/var/nfsshare     *(rw,sync,no_wdelay,no_root_squash,insecure,fsid=0)
+/var/nfsshare     *(rw,sync,no_wdelay,root_squash,insecure,fsid=0)
 EOF
 ```
 
